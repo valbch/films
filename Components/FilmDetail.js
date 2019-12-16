@@ -4,6 +4,7 @@ import {
   Image,
   ScrollView,
   StyleSheet,
+  TouchableOpacity,
   View,
   Text
 } from "react-native";
@@ -12,6 +13,8 @@ import { getFilmDetailFromApi } from "../API/TMDBApi";
 import { getImageFromApi } from "../API/TMDBApi";
 import moment from "moment";
 import numeral from "numeral";
+// Connecter le store - étape 1 =connecter le store à notre component FilmDetail grace a la fonction connect :
+import { connect } from "react-redux";
 
 class FilmDetail extends React.Component {
   constructor(props) {
@@ -26,8 +29,6 @@ class FilmDetail extends React.Component {
   // utiliser les data pour définir le state puis créer la fonction _displayFilm() pour afficher le détail du film
 
   componentDidMount() {
-    console.log("componentDidMount");
-
     getFilmDetailFromApi(this.props.navigation.state.params.idFilms).then(
       data => {
         this.setState({
@@ -37,6 +38,44 @@ class FilmDetail extends React.Component {
       }
     );
   }
+  //  Etape 2_Action :creation de la fonction qui sera appelé au clic du bouton "Favorie":
+  _toggleFavorite() {
+    const action = { type: "TOGGLE_FAVORITE", value: this.state.film };
+    // Etape3_Action : utiliser la fonction dispatch() pour envoyer la fonction au store
+    this.props.dispatch(action);
+  }
+
+  // creation de la méthode componentDidUpdate() - cette methode fait partie du cycle de vie updating
+  // faire un console.log(), permet de verifier:
+  // - bon fonctionnement de redux en ajoutant et en supprimant des films de nos favories
+  // - Que le component passe bien dans le cycle de vie updating a chaque fois qu'un changement à lieu dans la liste de film favoris
+
+  // ----------componentDidUpdate() -----------
+  // ajouter a la méthode un log  pour afficher les films favoris.
+  // => ouvrir le terminal - acceder au detail d'un film, puis cliquer sur le bouton Favoris: passage dans le cycle de vie updating et la liste de film favoris, géré par le store redux contient bien le film séléctionné
+  // si je reclique sur le bouton favoris - j'ai bien un tableau vide Array []
+  // on passe d'un tableau vide à un tableau avec un film,
+  // mais en plus le component FilmDetail passe bien dans le cycle updating à chaque changement
+  componentDidUpdate() {
+    console.log(this.props.favoritesFilm);
+  }
+  _displayFavoriteImage() {
+    // créer une variable sourceImage qui va nous permettre de gérer l'image à afficher
+    // l'initialiser avec le coeur vide
+    var sourceImage = require("../images/ic_favorite_border.png");
+    // utiliser la fonction .findIndex() pour savoir si le film fait parti ou non des favoris :
+    // si le resultat ne vaut pas - 1 = le film fait parti des favoris. Dans ce cas l'image à affiche est le coeur plein
+    if (
+      this.props.favoritesFilm.findIndex(
+        item => item.id === this.state.film.id
+      ) !== -1
+    ) {
+      sourceImage = require("../images/ic_favorite.png");
+    }
+    // puis rendre l'image:
+    return <Image source={sourceImage} style={styles.favorite_image} />;
+  }
+
   // creer une fonction pour afficher le detail du film:
   _displayFilm() {
     //récupérer le film dans une constante, car plus facile à utiliser:
@@ -53,6 +92,15 @@ class FilmDetail extends React.Component {
             source={{ uri: getImageFromApi(film.backdrop_path) }}
           />
           <Text style={styles.title_text}>{film.title}</Text>
+          {/* // Etape 1_Action : creation du bouton :  */}
+          <TouchableOpacity
+            // remplacer le bouton par un TouchableOpacity car le bouton ne peut pas afficher une image coeur
+            style={styles.favorites_container}
+            onPress={() => this._toggleFavorite()}
+          >
+            {/* // Dans le TouchableOpacity on va appeler la fonction _displayFavoriteImage() qui va se charger d'afficher un coeur plein ou un coeur vide : s'occuper du styles puis créer la fonction plus haut */}
+            {this._displayFavoriteImage()}
+          </TouchableOpacity>
           <Text style={styles.description_text}>{film.overview}</Text>
           <Text style={styles.default_text}>
             {/* //Utiliser moment.js pour formater la date. Les 2 lignes de code fonctionnent */}
@@ -93,7 +141,7 @@ class FilmDetail extends React.Component {
     }
   }
   render() {
-    console.log("render");
+    console.log(this.props);
 
     // console.log(this.props.navigation);
 
@@ -163,7 +211,21 @@ const styles = StyleSheet.create({
     marginRight: 5,
     marginTop: 5
     // backgroundColor: "pink"
+  },
+  favorite_container: {
+    alignItems: "center"
+    // ne pas définir de taille- la taille sera defini par la taille du coeur, son composant enfant
+  },
+  favorite_image: {
+    width: 40,
+    height: 40
   }
 });
-
-export default FilmDetail;
+// Connecter le store - étape 2 =créer une fonction  mapStateToProps  et l'ajouter en paramètre de la fonction  connect:
+const mapStateToProps = state => {
+  // Connecter le store - étape 4 = connecterez que les éléments nécessaires dans le return :
+  // => spécifier les informations qui nous intéressent et ne pas retourner tout le state
+  return { favoritesFilm: state.favoritesFilm };
+};
+// Connecter le store - étape 3  =connection du state de l'application avec les props du component FilmDetail:
+export default connect(mapStateToProps)(FilmDetail);
