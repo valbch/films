@@ -9,6 +9,7 @@ import Navigation from "./Navigation/Navigation";
 import { Provider } from "react-redux";
 // pour le distribuer il faut lui donner donc aller le chercher dans "./Store/configureStore" :
 import Store from "./Store/configureStore";
+import Test from "./Components/Test";
 
 export default class App extends React.Component {
   render() {

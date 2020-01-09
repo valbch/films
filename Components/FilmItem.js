@@ -1,6 +1,7 @@
 import React from "react";
 import { Image, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { getImageFromApi } from "../API/TMDBApi";
+import FadeIn from "./Animations/FadeIn";
 
 // 1/ mettre en dure les infos + s'occuper des images apres - en attendant mettre : source={{ uri: "Image" }}
 /////////
@@ -12,8 +13,23 @@ import { getImageFromApi } from "../API/TMDBApi";
 //remplacer la première View du component FilmItem par une TouchableOpacity qui est capable de récupérer des évènements, et notamment l'évènement  onPress  :
 
 class FilmItem extends React.Component {
+  // $$$$$$$--- Afficher 🖤 dans la vue Recherche/Search.js
+  // $$$$$$$--- Etape 4 :
+  // $$$$$$$--- creation de la fonction _displayFavoriteImage() pour affiche le coeur ou non
+  _displayFavoriteImage() {
+    // $$$$$$$---isFilmFavorite est la prop du component <FilmItem/> dans Search.js qui indique à l'item d'afficher un 🖤 ou non
+    if (this.props.isFilmFavorite === true) {
+      return (
+        <Image
+          style={styles.favorite_image}
+          source={require("../Images/ic_favorite.png")}
+        />
+      );
+    }
+  }
+
   render() {
-    console.log(this.props);
+    // console.log(this.props);
     //  1/ _______ console.log()__________
     // -  taper console.log(this.props)=  dans le render
     // pour afficher les props de notre component custom FilmItem
@@ -29,30 +45,36 @@ class FilmItem extends React.Component {
     const { film, displayDetailForFilm } = this.props;
 
     return (
-      //  // On définit la props onPress sur notre View pour appeler notre fonction displayDetailForFilm
-      <TouchableOpacity
-        onPress={() => displayDetailForFilm(film.id)}
-        style={styles.global}
-      >
-        <Image
-          style={styles.image}
-          source={{ uri: getImageFromApi(film.poster_path) }}
-        />
-        <View style={styles.content}>
-          <View style={styles.headerContainer}>
-            <Text style={styles.title}>{film.title}</Text>
-            <Text style={styles.vote}>{film.vote_average}</Text>
+      <FadeIn>
+        {/* // On définit la props onPress sur notre View pour appeler notre fonction displayDetailForFilm */}
+        <TouchableOpacity
+          onPress={() => displayDetailForFilm(film.id)}
+          style={styles.global}
+        >
+          <Image
+            style={styles.image}
+            source={{ uri: getImageFromApi(film.poster_path) }}
+          />
+          <View style={styles.content}>
+            <View style={styles.headerContainer}>
+              {/* // $$$$$$$--- Afficher 🖤 dans la vue Recherche/Search.js
+// $$$$$$$--- - Etape 4 : 
+// $$$$$$$--- Appel de la fonction _displayFavoriteImage() = afficher le coeur ou nom à gauche du titre */}
+              {this._displayFavoriteImage()}
+              <Text style={styles.title}>{film.title}</Text>
+              <Text style={styles.vote}>{film.vote_average}</Text>
+            </View>
+            <View style={styles.descriptionContainer}>
+              <Text style={styles.descriptionText} numberOfLines={6}>
+                {film.overview}
+              </Text>
+            </View>
+            <View style={styles.dateContainer}>
+              <Text style={styles.dateText}>Sorti le {film.release_date}</Text>
+            </View>
           </View>
-          <View style={styles.descriptionContainer}>
-            <Text style={styles.descriptionText} numberOfLines={6}>
-              {film.overview}
-            </Text>
-          </View>
-          <View style={styles.dateContainer}>
-            <Text style={styles.dateText}>Sorti le {film.release_date}</Text>
-          </View>
-        </View>
-      </TouchableOpacity>
+        </TouchableOpacity>
+      </FadeIn>
     );
   }
 }
@@ -99,6 +121,11 @@ const styles = StyleSheet.create({
   dateText: {
     textAlign: "right",
     fontSize: 14
+  },
+  favorite_image: {
+    width: 25,
+    height: 25,
+    marginRight: 5
   }
 });
 

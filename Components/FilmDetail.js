@@ -1,42 +1,129 @@
+// Components/FilmDetail.js
+
 import React from "react";
 import {
-  ActivityIndicator,
-  Image,
-  ScrollView,
   StyleSheet,
-  TouchableOpacity,
   View,
-  Text
+  Text,
+  ActivityIndicator,
+  ScrollView,
+  Image,
+  TouchableOpacity,
+  Share,
+  Platform
 } from "react-native";
 // pour appeler l'api au coponentDidMont :
-import { getFilmDetailFromApi } from "../API/TMDBApi";
-import { getImageFromApi } from "../API/TMDBApi";
+import { getFilmDetailFromApi, getImageFromApi } from "../API/TMDBApi";
 import moment from "moment";
 import numeral from "numeral";
 // Connecter le store - étape 1 =connecter le store à notre component FilmDetail grace a la fonction connect :
 import { connect } from "react-redux";
+import EnlargeShrink from "../Components/Animations/EnlargeShrink";
 
 class FilmDetail extends React.Component {
+  static navigationOptions = ({ navigation }) => {
+    const { params } = navigation.state;
+    // On accède à la fonction shareFilm et au film via les paramètres qu'on a ajouté à la navigation
+    if (params.film != undefined && Platform.OS === "ios") {
+      return {
+        // On a besoin d'afficher une image, il faut donc passe par une Touchable une fois de plus
+        headerRight: (
+          <TouchableOpacity
+            style={styles.share_touchable_headerrightbutton}
+            onPress={() => params.shareFilm()}
+          >
+            <Image
+              style={styles.share_image}
+              source={require("../Images/ic_share.png")}
+            />
+          </TouchableOpacity>
+        )
+      };
+    }
+  };
   constructor(props) {
     super(props);
     this.state = {
       film: undefined,
-      isLoading: true
+      isLoading: false
     };
+    // Ne pas oublier de binder la fonction _shareFilm sinon, lorsqu'on va l'appeler depuis le headerRight de la navigation, this.state.film sera undefined et fera planter l'application
+    this._shareFilm = this._shareFilm.bind(this);
   }
-  // ------ Appel API avec componentDidMont: -------
-  // lancer l'appel api en appelant la fonction getFilmDetailFromApi(
-  // utiliser les data pour définir le state puis créer la fonction _displayFilm() pour afficher le détail du film
+  // Fonction pour faire passer la fonction _shareFilm et le film aux paramètres de la navigation. Ainsi on aura accès à ces données au moment de définir le headerRight
+  _updateNavigationParams() {
+    this.props.navigation.setParams({
+      shareFilm: this._shareFilm,
+      film: this.state.film
+    });
+  }
+  // Dès que le film est chargé, on met à jour les paramètres de la navigation (avec la fonction _updateNavigationParams) pour afficher le bouton de partage
 
   componentDidMount() {
-    getFilmDetailFromApi(this.props.navigation.state.params.idFilms).then(
+    const favoriteFilmIndex = this.props.favoritesFilm.findIndex(
+      item => item.id === this.props.navigation.state.params.idFilm
+    );
+    if (favoriteFilmIndex !== -1) {
+      // Film déjà dans nos favoris, on a déjà son détail
+      // Pas besoin d'appeler l'API ici, on ajoute le détail stocké dans notre state global au state de notre component
+      this.setState(
+        {
+          film: this.props.favoritesFilm[favoriteFilmIndex]
+        },
+        () => {
+          this._updateNavigationParams();
+        }
+      );
+      return;
+    }
+    // Le film n'est pas dans nos favoris, on n'a pas son détail
+    // On appelle l'API pour récupérer son détail
+    this.setState({ isLoading: true });
+    getFilmDetailFromApi(this.props.navigation.state.params.idFilm).then(
       data => {
-        this.setState({
-          film: data,
-          isLoading: false
-        });
+        this.setState(
+          {
+            film: data,
+            isLoading: false
+          },
+          () => {
+            this._updateNavigationParams();
+          }
+        );
       }
     );
+  }
+  _shareFilm() {
+    // recupérer le film qui est dans le state
+    const { film } = this.state;
+    Share.share({ title: film.title, message: film.overview });
+  }
+  // le bouton Rose =
+  _displayFloatingActionButton() {
+    const { film } = this.state;
+    if (film !== undefined && Platform.OS === "android") {
+      return (
+        <TouchableOpacity
+          style={styles.share_touchable_floatingactionbutton}
+          onPress={() => this._shareFilm()}
+        >
+          <Image
+            style={styles.share_image}
+            source={require("../Images/ic_share.png")}
+          />
+        </TouchableOpacity>
+      );
+    }
+  }
+
+  _displayLoading() {
+    if (this.state.isLoading) {
+      return (
+        <View style={styles.loading_container}>
+          <ActivityIndicator size="large" />
+        </View>
+      );
+    }
   }
   //  Etape 2_Action :creation de la fonction qui sera appelé au clic du bouton "Favorie":
   _toggleFavorite() {
@@ -45,74 +132,53 @@ class FilmDetail extends React.Component {
     this.props.dispatch(action);
   }
 
-  // creation de la méthode componentDidUpdate() - cette methode fait partie du cycle de vie updating
-  // faire un console.log(), permet de verifier:
-  // - bon fonctionnement de redux en ajoutant et en supprimant des films de nos favories
-  // - Que le component passe bien dans le cycle de vie updating a chaque fois qu'un changement à lieu dans la liste de film favoris
-
-  // ----------componentDidUpdate() -----------
-  // ajouter a la méthode un log  pour afficher les films favoris.
-  // => ouvrir le terminal - acceder au detail d'un film, puis cliquer sur le bouton Favoris: passage dans le cycle de vie updating et la liste de film favoris, géré par le store redux contient bien le film séléctionné
-  // si je reclique sur le bouton favoris - j'ai bien un tableau vide Array []
-  // on passe d'un tableau vide à un tableau avec un film,
-  // mais en plus le component FilmDetail passe bien dans le cycle updating à chaque changement
-  componentDidUpdate() {
-    console.log(this.props.favoritesFilm);
-  }
   _displayFavoriteImage() {
-    // créer une variable sourceImage qui va nous permettre de gérer l'image à afficher
-    // l'initialiser avec le coeur vide
-    var sourceImage = require("../images/ic_favorite_border.png");
-    // utiliser la fonction .findIndex() pour savoir si le film fait parti ou non des favoris :
-    // si le resultat ne vaut pas - 1 = le film fait parti des favoris. Dans ce cas l'image à affiche est le coeur plein
+    var sourceImage = require("../Images/ic_favorite_border.png");
+    var shouldEnlarge = false; // Par défaut, si le film n'est pas en favoris, on veut qu'au clic sur le bouton, celui-ci s'agrandisse => shouldEnlarge à true
     if (
       this.props.favoritesFilm.findIndex(
         item => item.id === this.state.film.id
       ) !== -1
     ) {
-      sourceImage = require("../images/ic_favorite.png");
+      // Film dans nos favoris
+      sourceImage = require("../Images/ic_favorite.png");
+      shouldEnlarge = true; // Si le film est dans les favoris, on veut qu'au clic sur le bouton, celui-ci se rétrécisse => shouldEnlarge à false
     }
-    // puis rendre l'image:
-    return <Image source={sourceImage} style={styles.favorite_image} />;
+    return (
+      <EnlargeShrink shouldEnlarge={shouldEnlarge}>
+        <Image style={styles.favorite_image} source={sourceImage} />
+      </EnlargeShrink>
+    );
   }
 
-  // creer une fonction pour afficher le detail du film:
   _displayFilm() {
-    //récupérer le film dans une constante, car plus facile à utiliser:
-    const film = this.state.film;
-    // afficher son détail uniquement si film ne vaut pas undefined sinon lors du lancement de l'application, on va passer dans le _displyFilm alors que le film ne sera pas encore récupéré
-    // recupérer la fonction dans le render de notre component
+    const { film } = this.state;
     if (film != undefined) {
       return (
-        //component ScrollView = comme une vue mais quand il y a bcp de contenu, la vue va scroller
-        <ScrollView style={styles.ScrollView_container}>
-          {/* <Text>{film.title}</Text> */}
+        <ScrollView style={styles.scrollview_container}>
           <Image
             style={styles.image}
             source={{ uri: getImageFromApi(film.backdrop_path) }}
           />
           <Text style={styles.title_text}>{film.title}</Text>
-          {/* // Etape 1_Action : creation du bouton :  */}
           <TouchableOpacity
-            // remplacer le bouton par un TouchableOpacity car le bouton ne peut pas afficher une image coeur
-            style={styles.favorites_container}
+            style={styles.favorite_container}
             onPress={() => this._toggleFavorite()}
           >
-            {/* // Dans le TouchableOpacity on va appeler la fonction _displayFavoriteImage() qui va se charger d'afficher un coeur plein ou un coeur vide : s'occuper du styles puis créer la fonction plus haut */}
             {this._displayFavoriteImage()}
           </TouchableOpacity>
           <Text style={styles.description_text}>{film.overview}</Text>
           <Text style={styles.default_text}>
-            {/* //Utiliser moment.js pour formater la date. Les 2 lignes de code fonctionnent */}
-            {/* Sorti le {moment(new Date(film.release_date)).format("DD/MM/YYYY")} */}
-            Sorti le : {moment(film.release_date).format("DD/MM/YYYY")}
-          </Text>
-          <Text style={styles.default_text}>Note : {film.vote_average} </Text>
-          <Text style={styles.default_text}>
-            Nombre de votes : {film.vote_count}{" "}
+            Sorti le {moment(new Date(film.release_date)).format("DD/MM/YYYY")}
           </Text>
           <Text style={styles.default_text}>
-            Budget : {numeral(film.budget).format("0,0 $")}{" "}
+            Note : {film.vote_average} / 10
+          </Text>
+          <Text style={styles.default_text}>
+            Nombre de votes : {film.vote_count}
+          </Text>
+          <Text style={styles.default_text}>
+            Budget : {numeral(film.budget).format("0,0[.]00 $")}
           </Text>
           <Text style={styles.default_text}>
             Genre(s) :{" "}
@@ -131,32 +197,12 @@ class FilmDetail extends React.Component {
     }
   }
 
-  _displayLoading() {
-    if (this.state.isLoading) {
-      return (
-        <View style={styles.loading_container}>
-          <ActivityIndicator size="large" />
-        </View>
-      );
-    }
-  }
   render() {
-    console.log(this.props);
-
-    // console.log(this.props.navigation);
-
-    const idFilms = this.props.navigation.state.params.idFilms;
     return (
       <View style={styles.main_container}>
-        {/* //pour afficher le detail du film: _displayFilm() */}
-        {this._displayFilm()}
         {this._displayLoading()}
-        {/* <Text>
-        {idFilms}
-         ou directement dans creer de const idFilms= {/* Détail du film !!!{this.props.navigation.state.params.idFilms} */}
-        {/* </Text> */}
-        {/* // ou acceder aux parametresen utilisant la fonction getParam() */}
-        {/* <Text>Détail du film{this.props.navigation.getParam('idFilm')}</Text> */}
+        {this._displayFilm()}
+        {this._displayFloatingActionButton()}
       </View>
     );
   }
@@ -167,65 +213,76 @@ const styles = StyleSheet.create({
     flex: 1
   },
   loading_container: {
-    position: "absolute", // pour faire passer ma vue de chargement par dessus mon écran - La définition de la position  absolute  va nous permettre de faire passer le chargement par-dessus notre FlatList. Le problème est que le style  position: 'absolute'  fait passer notre chargement par-dessus toute notre vue, y compris le TextInput et le Button "Rechercher". Si vous affichez une vue par dessus des éléments, ces derniers ne sont plus accessibles. On définit donc une valeur top à 100 pour notre vue, pour qu'elle ne bloque pas l'accès au TextInput et au Button "Rechercher".
+    position: "absolute",
     left: 0,
     right: 0,
     top: 0,
     bottom: 0,
     alignItems: "center",
     justifyContent: "center"
-    // pour que l'ActivityIndicator soit centré dans la vue = alignItems et justifyContent = center
   },
-  ScrollView_container: {
-    flex: 1 // pour que le contenu de la scrollView prenne tout l'ecran
-    // flexDirection: "row"
+  scrollview_container: {
+    flex: 1
   },
   image: {
     height: 169,
     margin: 5
-    // backgroundColor: "gray"
   },
   title_text: {
-    // backgroundColor: "yellow",
     fontWeight: "bold",
-    textAlign: "center",
-    flexWrap: "wrap",
     fontSize: 35,
     flex: 1,
+    flexWrap: "wrap",
     marginLeft: 5,
     marginRight: 5,
     marginTop: 10,
-    marginBottom: 10
+    marginBottom: 10,
+    color: "#000000",
+    textAlign: "center"
+  },
+  favorite_container: {
+    alignItems: "center"
   },
   description_text: {
     fontStyle: "italic",
     color: "#666666",
     margin: 5,
     marginBottom: 15
-    // backgroundColor: "red"
   },
   default_text: {
-    fontSize: 10,
-    fontWeight: "bold",
     marginLeft: 5,
     marginRight: 5,
     marginTop: 5
-    // backgroundColor: "pink"
-  },
-  favorite_container: {
-    alignItems: "center"
-    // ne pas définir de taille- la taille sera defini par la taille du coeur, son composant enfant
   },
   favorite_image: {
-    width: 40,
-    height: 40
+    flex: 1,
+    width: null,
+    height: null
+  },
+  share_touchable_floatingactionbutton: {
+    position: "absolute", // la touchableOpacity va s'afficher au dessus des autres components
+    width: 60,
+    height: 60,
+    right: 30,
+    bottom: 30,
+    borderRadius: 30,
+    backgroundColor: "#e91e63",
+    justifyContent: "center",
+    alignItems: "center"
+  },
+  share_image: {
+    width: 30,
+    height: 30
+  },
+  share_touchable_headerrightbutton: {
+    marginRight: 8
   }
 });
-// Connecter le store - étape 2 =créer une fonction  mapStateToProps  et l'ajouter en paramètre de la fonction  connect:
+
 const mapStateToProps = state => {
-  // Connecter le store - étape 4 = connecterez que les éléments nécessaires dans le return :
-  // => spécifier les informations qui nous intéressent et ne pas retourner tout le state
-  return { favoritesFilm: state.favoritesFilm };
+  return {
+    favoritesFilm: state.favoritesFilm
+  };
 };
-// Connecter le store - étape 3  =connection du state de l'application avec les props du component FilmDetail:
+
 export default connect(mapStateToProps)(FilmDetail);
